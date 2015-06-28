@@ -11,26 +11,37 @@ import org.w3c.dom.Text;
 
 import ca.uwaterloo.sensortoy.LineGraphView;
 
-public class AccelerometerSensorEventListener implements SensorEventListener {
+public class StepCounter implements SensorEventListener {
 
     // Initialize variables
-    TextView stepsView;
+    TextView stepsView, yStepsView, xStepsView, yDisplacementView, xDisplacementView, orientationView;
     float currentMagnitude, prevMagnitude, currentDerivative, prevDerivative, magnitudeOfStep;
     Long prevTimestamp, currentTimestamp, lastStepTimestamp;
-    int steps = 0;
+    int steps, ySteps, xSteps = 0;
+    double yDisplacement = 0, xDisplacement = 0;
     float[] values = new float[3];
     float[] prev20Magnitudes = new float[20];
     float largestMagnitudeInPast20Readings = 0;
+    float degreesFromNorth = 0;
+    float currentOrientation, calibratedOrientation;
     int filledCount = 0;
     boolean filled = false;
     LineGraphView accelerometerGraph;
     Button reset_button;
+    Button calibration_button;
+    String direction = "North";
 
-    // Constructor for the class, takes in a graph (for graphing steps), button (for resetting steps) and TextView (for displaying steps)
-    public AccelerometerSensorEventListener(LineGraphView graph, Button button, TextView view1) {
+    // Constructor for the class, takes in a graph (for graphing steps), buttons (for reset/calibration) and TextViews (for displaying information)
+    public StepCounter(LineGraphView graph, Button button1, Button button2, TextView view1, TextView view2, TextView view3, TextView view4, TextView view5, TextView view6) {
         accelerometerGraph = graph;
-        reset_button = button;
+        reset_button = button1;
+        calibration_button = button2;
         stepsView = view1;
+        yStepsView = view2;
+        xStepsView = view3;
+        yDisplacementView = view4;
+        xDisplacementView = view5;
+        orientationView = view6;
     }
 
     // Find the derivative given a point (y = magnitude, x = timestamp)
@@ -120,6 +131,21 @@ public class AccelerometerSensorEventListener implements SensorEventListener {
                     // Bulk of the step checking, implements steps 2-6 as mentioned above
                     if(largestMagnitudeInPast20Readings < 5 && currentMagnitude > 1.3 && currentDerivative < 0 && prevDerivative > 0 && (timeDiff > 600) && (timeDiff < 1000)) {
                         steps += 1;
+                        if(direction == "North" || direction == "South") {
+                            ySteps +=1 ;
+                            if(direction == "North") {
+                                yDisplacement += 0.75;
+                            } else {
+                                yDisplacement -= 0.75;
+                            }
+                        } else {
+                            xSteps +=1;
+                            if(direction == "East") {
+                                xDisplacement += 0.75;
+                            } else {
+                                xDisplacement -= 0.75;
+                            }
+                        }
                         lastStepTimestamp = currentTimestamp;
                         magnitudeOfStep = currentMagnitude;
                     }
@@ -143,6 +169,10 @@ public class AccelerometerSensorEventListener implements SensorEventListener {
                 @Override
                 public void onClick(View vw) {
                     steps = 0;
+                    ySteps = 0;
+                    xSteps = 0;
+                    yDisplacement = 0;
+                    xDisplacement = 0;
                 }
             });
 
@@ -155,10 +185,35 @@ public class AccelerometerSensorEventListener implements SensorEventListener {
             currentTimestamp = se.timestamp;
             findLargestMagnitudeInPast20Readings();
             checkForStep();
-            // Update the TextView
-            stepsView.setText("Steps: " + steps);
+            // Update the TextViews
+            stepsView.setText("Total Steps: " + steps);
+            yStepsView.setText("Total Steps North/South: " + ySteps);
+            xStepsView.setText("Total Steps East/West: " + xSteps);
+            yDisplacementView.setText("North/South Displacement: " + yDisplacement + "m");
+            xDisplacementView.setText("East/West Displacement: " + xDisplacement + "m");
             // Update the graph
             accelerometerGraph.addPoint(values);
+        } else if(se.sensor.getType() == Sensor.TYPE_ORIENTATION) {
+            currentOrientation = se.values[0];
+            // Calibrate the orientation (set the current orientation as north) when the button is clicked
+            calibration_button.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View vw) {
+                    degreesFromNorth = currentOrientation;
+                }
+            });
+            // Calculate a calibrated orientation by using modulus
+            calibratedOrientation = (((currentOrientation-degreesFromNorth)%360) + 360)%360;
+            if(calibratedOrientation < 45 || calibratedOrientation > 315) {
+                direction = "North";
+            } else if(calibratedOrientation < 135 && calibratedOrientation > 45) {
+                direction = "East";
+            } else if(calibratedOrientation < 225 && calibratedOrientation > 135) {
+                direction = "South";
+            } else if(calibratedOrientation < 315 && calibratedOrientation > 225) {
+                direction = "West";
+            }
+            orientationView.setText("Orientation: " + direction + " at " + calibratedOrientation + " degrees.");
         }
     }
 }
