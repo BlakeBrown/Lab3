@@ -18,7 +18,7 @@ public class StepCounter implements SensorEventListener {
     float currentMagnitude, prevMagnitude, currentDerivative, prevDerivative, magnitudeOfStep;
     Long prevTimestamp, currentTimestamp, lastStepTimestamp;
     int steps, ySteps, xSteps = 0;
-    double yDisplacement = 0, xDisplacement = 0;
+    double yDisplacement = 0, xDisplacement = 0, stepMagnitude = 0.5, stepMagnitudeY = 0, stepMagnitudeX = 0, calibratedOrientationRadians = 0;
     float[] values = new float[3];
     float[] prev20Magnitudes = new float[20];
     float largestMagnitudeInPast20Readings = 0;
@@ -133,19 +133,11 @@ public class StepCounter implements SensorEventListener {
                         steps += 1;
                         if(direction == "North" || direction == "South") {
                             ySteps +=1 ;
-                            if(direction == "North") {
-                                yDisplacement += 0.75;
-                            } else {
-                                yDisplacement -= 0.75;
-                            }
                         } else {
                             xSteps +=1;
-                            if(direction == "East") {
-                                xDisplacement += 0.75;
-                            } else {
-                                xDisplacement -= 0.75;
-                            }
                         }
+                        yDisplacement+= stepMagnitudeY;
+                        xDisplacement+= stepMagnitudeX;
                         lastStepTimestamp = currentTimestamp;
                         magnitudeOfStep = currentMagnitude;
                     }
@@ -204,15 +196,21 @@ public class StepCounter implements SensorEventListener {
             });
             // Calculate a calibrated orientation by using modulus
             calibratedOrientation = (((currentOrientation-degreesFromNorth)%360) + 360)%360;
+            // Determine the general direction user is facing
             if(calibratedOrientation < 45 || calibratedOrientation > 315) {
                 direction = "North";
             } else if(calibratedOrientation < 135 && calibratedOrientation > 45) {
                 direction = "East";
+
             } else if(calibratedOrientation < 225 && calibratedOrientation > 135) {
                 direction = "South";
             } else if(calibratedOrientation < 315 && calibratedOrientation > 225) {
                 direction = "West";
             }
+            calibratedOrientationRadians = calibratedOrientation*Math.PI/180;
+            // Calculate the vector components of a step in this direction
+            stepMagnitudeY = stepMagnitude*Math.cos(calibratedOrientationRadians);
+            stepMagnitudeX = stepMagnitude*Math.sin(calibratedOrientationRadians);
             orientationView.setText("Orientation: " + direction + " at " + calibratedOrientation + " degrees.");
         }
     }
